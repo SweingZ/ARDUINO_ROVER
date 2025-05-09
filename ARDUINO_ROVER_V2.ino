@@ -3,11 +3,18 @@
 #define Echo A0
 #define Trig A1
 #define motor 10
-#define Speed 150
+#define DEFAULT_SPEED 150
 #define spoint 103
+
+// Gear speeds
+#define FIRST_GEAR 150
+#define SECOND_GEAR 170
+#define THIRD_GEAR 190
+#define FOURTH_GEAR 210
 
 char value;
 int distance;
+int currentSpeed = DEFAULT_SPEED;
 Servo servo;
 AF_DCMotor M1(1);
 AF_DCMotor M2(2);
@@ -19,10 +26,7 @@ void setup() {
   pinMode(Trig, OUTPUT);
   pinMode(Echo, INPUT);
   servo.attach(motor);
-  M1.setSpeed(Speed);
-  M2.setSpeed(Speed);
-  M3.setSpeed(Speed);
-  M4.setSpeed(Speed);
+  setSpeed(DEFAULT_SPEED); // Initialize with default speed
 }
 
 void loop() {
@@ -35,30 +39,53 @@ void control() {
     value = Serial.read();
     Serial.println(value);
 
-    // Handle both Bluetooth and Voice commands
-    if (value == 'F') { // Bluetooth forward
+    // Handle Bluetooth, Voice, and Gesture commands
+    if (value == 'F') { // Bluetooth forward (uses default speed)
+      setSpeed(DEFAULT_SPEED);
       forward();
-    } else if (value == 'B') { // Bluetooth backward
+    } else if (value == 'B') { // Bluetooth/gesture backward
+      setSpeed(DEFAULT_SPEED);
       backward();
-    } else if (value == 'L') { // Bluetooth left
+    } else if (value == 'L') { // Bluetooth/gesture left
+      setSpeed(DEFAULT_SPEED);
       left();
-    } else if (value == 'R') { // Bluetooth right
+    } else if (value == 'R') { // Bluetooth/gesture right
+      setSpeed(DEFAULT_SPEED);
       right();
-    } else if (value == 'S') { // Bluetooth stop
+    } else if (value == 'S') { // Bluetooth/gesture stop
       Stop();
-    } else if (value == '^') { // Voice forward (timed)
+    } 
+    // Gear commands from gesture control
+    else if (value == '1') { // First gear (F1)
+      setSpeed(FIRST_GEAR);
       forward();
-      delay(2000);  // Move for 2 seconds
+    } else if (value == '2') { // Second gear (F2)
+      setSpeed(SECOND_GEAR);
+      forward();
+    } else if (value == '3') { // Third gear (F3)
+      setSpeed(THIRD_GEAR);
+      forward();
+    } else if (value == '4') { // Fourth gear (F4)
+      setSpeed(FOURTH_GEAR);
+      forward();
+    }
+    // Voice commands (unchanged)
+    else if (value == '^') { // Voice forward (timed)
+      setSpeed(DEFAULT_SPEED);
+      forward();
+      delay(2000);
       Stop();
     } else if (value == '-') { // Voice backward (timed)
+      setSpeed(DEFAULT_SPEED);
       backward();
-      delay(2000);  // Move for 2 seconds
+      delay(2000);
       Stop();
     } else if (value == '<') { // Voice left
       int leftDistance = leftsee();
       servo.write(spoint);
       delay(800);
       if (leftDistance >= 10) {
+        setSpeed(DEFAULT_SPEED);
         left();
         delay(500);
         Stop();
@@ -70,6 +97,7 @@ void control() {
       servo.write(spoint);
       delay(800);
       if (rightDistance >= 10) {
+        setSpeed(DEFAULT_SPEED);
         right();
         delay(500);
         Stop();
@@ -80,6 +108,14 @@ void control() {
       Stop();
     }
   }
+}
+
+void setSpeed(int speed) {
+  currentSpeed = speed;
+  M1.setSpeed(currentSpeed);
+  M2.setSpeed(currentSpeed);
+  M3.setSpeed(currentSpeed);
+  M4.setSpeed(currentSpeed);
 }
 
 int ultrasonic() {
