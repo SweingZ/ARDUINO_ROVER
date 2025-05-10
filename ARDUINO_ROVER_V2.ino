@@ -15,6 +15,7 @@
 char value;
 int distance;
 int currentSpeed = DEFAULT_SPEED;
+bool autoPilotMode = false;  // Track if we're in auto-pilot mode
 Servo servo;
 AF_DCMotor M1(1);
 AF_DCMotor M2(2);
@@ -26,12 +27,15 @@ void setup() {
   pinMode(Trig, OUTPUT);
   pinMode(Echo, INPUT);
   servo.attach(motor);
-  setSpeed(DEFAULT_SPEED); // Initialize with default speed
+  servo.write(spoint);  // Center the servo at startup
+  setSpeed(DEFAULT_SPEED);
 }
 
 void loop() {
-  // Obstacle(); // Uncomment if needed
-  control();
+  control();  // Always check for commands first
+  if (autoPilotMode) {
+    Obstacle();  // Run obstacle avoidance if still in auto-pilot
+  }
 }
 
 void control() {
@@ -40,47 +44,62 @@ void control() {
     Serial.println(value);
 
     // Handle Bluetooth, Voice, and Gesture commands
-    if (value == 'F') { // Bluetooth forward (uses default speed)
+    if (value == 'F') { // Bluetooth forward
+      autoPilotMode = false;
       setSpeed(DEFAULT_SPEED);
       forward();
-    } else if (value == 'B') { // Bluetooth/gesture backward
+    } else if (value == 'B') { // Backward
+      autoPilotMode = false;
       setSpeed(DEFAULT_SPEED);
       backward();
-    } else if (value == 'L') { // Bluetooth/gesture left
+    } else if (value == 'L') { // Left
+      autoPilotMode = false;
       setSpeed(DEFAULT_SPEED);
       left();
-    } else if (value == 'R') { // Bluetooth/gesture right
+    } else if (value == 'R') { // Right
+      autoPilotMode = false;
       setSpeed(DEFAULT_SPEED);
       right();
-    } else if (value == 'S') { // Bluetooth/gesture stop
+    } else if (value == 'S') { // Stop
+      autoPilotMode = false;
       Stop();
     } 
-    // Gear commands from gesture control
-    else if (value == '1') { // First gear (F1)
+    // Gear commands
+    else if (value == '1') { // First gear
+      autoPilotMode = false;
       setSpeed(FIRST_GEAR);
       forward();
-    } else if (value == '2') { // Second gear (F2)
+    } else if (value == '2') { // Second gear
+      autoPilotMode = false;
       setSpeed(SECOND_GEAR);
       forward();
-    } else if (value == '3') { // Third gear (F3)
+    } else if (value == '3') { // Third gear
+      autoPilotMode = false;
       setSpeed(THIRD_GEAR);
       forward();
-    } else if (value == '4') { // Fourth gear (F4)
+    } else if (value == '4') { // Fourth gear
+      autoPilotMode = false;
       setSpeed(FOURTH_GEAR);
       forward();
+    } else if (value == 'A') { // Autopilot Mode
+      autoPilotMode = true;
+      setSpeed(DEFAULT_SPEED);
     }
-    // Voice commands (unchanged)
-    else if (value == '^') { // Voice forward (timed)
+    // Voice commands
+    else if (value == '^') { // Voice forward
+      autoPilotMode = false;
       setSpeed(DEFAULT_SPEED);
       forward();
       delay(2000);
       Stop();
-    } else if (value == '-') { // Voice backward (timed)
+    } else if (value == '-') { // Voice backward
+      autoPilotMode = false;
       setSpeed(DEFAULT_SPEED);
       backward();
       delay(2000);
       Stop();
     } else if (value == '<') { // Voice left
+      autoPilotMode = false;
       int leftDistance = leftsee();
       servo.write(spoint);
       delay(800);
@@ -93,6 +112,7 @@ void control() {
         Stop();
       }
     } else if (value == '>') { // Voice right
+      autoPilotMode = false;
       int rightDistance = rightsee();
       servo.write(spoint);
       delay(800);
@@ -105,9 +125,50 @@ void control() {
         Stop();
       }
     } else if (value == '*') { // Voice stop
+      autoPilotMode = false;
       Stop();
     }
   }
+}
+
+void Obstacle() {
+  distance = ultrasonic();
+  
+  if (distance <= 12) {  // Obstacle detected
+    Stop();
+    delay(200);
+    
+    // Check left distance
+    servo.write(180);  // Look left
+    delay(800);        // Wait for servo to move
+    int leftDist = ultrasonic();
+    
+    // Check right distance
+    servo.write(20);   // Look right
+    delay(800);        // Wait for servo to move
+    int rightDist = ultrasonic();
+    
+    // Return servo to center
+    servo.write(spoint);
+    delay(500);
+    
+    // Decide which way to turn
+    if (leftDist > rightDist) {
+      left();
+      delay(500);  // Turn for 500ms
+    } else {
+      right();
+      delay(500);  // Turn for 500ms
+    }
+    
+    Stop();
+    delay(200);
+  } else {
+    // No obstacle, keep moving forward
+    forward();
+  }
+
+  delay(50);
 }
 
 void setSpeed(int speed) {
