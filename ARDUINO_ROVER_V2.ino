@@ -1,5 +1,9 @@
 #include <Servo.h>
 #include <AFMotor.h>
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_HMC5883_U.h>
+
 #define Echo A0
 #define Trig A1
 #define motor 10
@@ -22,6 +26,9 @@ AF_DCMotor M2(2);
 AF_DCMotor M3(3);
 AF_DCMotor M4(4);
 
+/* Assign a unique ID to this sensor at the same time */
+Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
+
 void setup() {
   Serial.begin(9600);
   pinMode(Trig, OUTPUT);
@@ -29,10 +36,24 @@ void setup() {
   servo.attach(motor);
   servo.write(spoint);  // Center the servo at startup
   setSpeed(DEFAULT_SPEED);
+
+    /* Initialize the HMC5883 sensor */
+  if(!mag.begin()) {
+    Serial.println("Could not find HMC5883 sensor!");
+    while(1);
+  }
 }
 
 void loop() {
   control();  // Always check for commands first
+  
+  // Send compass data periodically (every 500ms)
+  static unsigned long lastSendTime = 0;
+  if (millis() - lastSendTime > 500) {
+    sendCompassData();
+    lastSendTime = millis();
+  }
+  
   if (autoPilotMode) {
     Obstacle();  // Run obstacle avoidance if still in auto-pilot
   }
@@ -182,6 +203,7 @@ void setSpeed(int speed) {
 int ultrasonic() {
   digitalWrite(Trig, LOW);
   delayMicroseconds(4);
+  
   digitalWrite(Trig, HIGH);
   delayMicroseconds(10);
   digitalWrite(Trig, LOW);
@@ -234,4 +256,29 @@ void Stop() {
   M2.run(RELEASE);
   M3.run(RELEASE);
   M4.run(RELEASE);
+}
+
+void sendCompassData() {
+  /* Get a new sensor event */ 
+  sensors_event_t event; 
+  mag.getEvent(&event);
+ 
+  /* Calculate heading */
+  float heading = atan2(event.magnetic.y, event.magnetic.x);
+  float declinationAngle = 0.22; // Update this for your location
+  heading += declinationAngle;
+  
+  // Normalize to 0-2π
+  if(heading < 0) heading += 2*PI;
+  if(heading > 2*PI) heading -= 2*PI;
+  
+  // Convert to degrees
+  float headingDegrees = heading * 180/M_PI;
+  
+  /* Send data in a compact format: C,X,Y,Z,H */
+  Serial.print("C,");
+  Serial.print(event.magnetic.x); Serial.print(",");
+  Serial.print(event.magnetic.y); Serial.print(",");
+  Serial.print(event.magnetic.z); Serial.print(",");
+  Serial.println(headingDegrees);
 }
