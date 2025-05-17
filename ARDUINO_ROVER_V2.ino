@@ -155,7 +155,9 @@ void control() {
 void Obstacle() {
   distance = ultrasonic();
   
-  if (distance <= 12) {  // Obstacle detected
+  if (distance <= 30) {  // Obstacle detected
+    backward();
+    delay(200);
     Stop();
     delay(200);
     
